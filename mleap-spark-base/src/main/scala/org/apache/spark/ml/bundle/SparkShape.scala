@@ -4,7 +4,6 @@ import ml.bundle.Socket
 import ml.combust.bundle.dsl.NodeShape
 import org.apache.spark.ml.param.{Param, Params, StringArrayParam}
 import org.apache.spark.sql.DataFrame
-import BundleTypeConverters._
 
 import scala.language.implicitConversions
 
