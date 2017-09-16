@@ -9,19 +9,9 @@ import scala.util.Try
 /**
  * Created by hwilkins on 11/8/15.
  */
-case class PipelineModel(transformers: Seq[Transformer]) extends Model
-
-case class Pipeline(override val uid: String = Transformer.uniqueName("pipeline"),
-                    override val shape: NodeShape,
-                    override val model: PipelineModel) extends Transformer {
-  def transformers: Seq[Transformer] = model.transformers
-
-  override def transform[TB <: TransformBuilder[TB]](builder: TB): Try[TB] = {
-    model.transformers.foldLeft(Try(builder))((b, stage) => b.flatMap(stage.transform))
-  }
-
-  override lazy val inputSchema: StructType = schemas._1
-  override lazy val outputSchema: StructType = schemas._2
+case class PipelineModel(transformers: Seq[Transformer]) extends Model {
+  override def inputSchema: StructType = schemas._1
+  override def outputSchema: StructType = schemas._2
 
   private lazy val schemas: (StructType, StructType) = {
     val (inputs, outputs) = transformers.foldLeft((Map[String, DataType](), Map[String, DataType]())) {
@@ -39,6 +29,16 @@ case class Pipeline(override val uid: String = Transformer.uniqueName("pipeline"
     }.toSeq
 
     (StructType(actualInputs).get, StructType(actualOutputs).get)
+  }
+}
+
+case class Pipeline(override val uid: String = Transformer.uniqueName("pipeline"),
+                    override val shape: NodeShape,
+                    override val model: PipelineModel) extends Transformer {
+  def transformers: Seq[Transformer] = model.transformers
+
+  override def transform[TB <: TransformBuilder[TB]](builder: TB): Try[TB] = {
+    model.transformers.foldLeft(Try(builder))((b, stage) => b.flatMap(stage.transform))
   }
 
   override def close(): Unit = transformers.foreach(_.close())
