@@ -4,7 +4,7 @@ import java.io.File
 
 import ml.combust.mleap.runtime
 import org.apache.spark.ml.Transformer
-import org.apache.spark.sql.{Column, DataFrame, SparkSession}
+import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSpec}
 import ml.combust.mleap.spark.SparkSupport._
 import ml.combust.mleap.runtime.MleapSupport._
@@ -21,7 +21,6 @@ import org.apache.spark.sql.mleap.TensorUDT
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.types.ArrayType
 import ml.combust.mleap.core.util.VectorConverters._
-import ml.combust.mleap.runtime.function.UserDefinedFunction
 import ml.combust.mleap.runtime.transformer.{BaseTransformer, Pipeline}
 import resource._
 
@@ -116,11 +115,27 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
     }).tried.get
   }
 
-  def asssertModelTypesMatchTransformerTypes(model: Model, exec: UserDefinedFunction) = {
-    checkTypes(model.inputSchema.fields.map(field => field.dataType),
-      exec.inputs.map(in => in.dataTypes).flatten)
-    checkTypes(model.outputSchema.fields.map(field => field.dataType),
-      exec.output.dataTypes)
+  def asssertModelTypesMatchTransformerTypes(model: Model, transformer: BaseTransformer) = {
+    val modelInputTypes = transformer.shape.inputs.
+      map(_._2.port).
+      map(n => model.inputSchema.getField(n).get.dataType).
+      toSeq
+    val transformerInputTypes = transformer.shape.inputs.
+      map(_._2.name).
+      map(n => transformer.inputSchema.getField(n).get.dataType).
+      toSeq
+
+    val modelOutputTypes = transformer.shape.outputs.
+      map(_._2.port).
+      map(n => model.outputSchema.getField(n).get.dataType).
+      toSeq
+    val transformerOutputTypes = transformer.shape.outputs.
+      map(_._2.name).
+      map(n => transformer.outputSchema.getField(n).get.dataType).
+      toSeq
+
+    checkTypes(modelInputTypes, transformerInputTypes)
+    checkTypes(modelOutputTypes, transformerOutputTypes)
   }
 
   def checkTypes(modelTypes: Seq[DataType], transformerTypes: Seq[DataType]) = {
@@ -137,6 +152,11 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
     }
   }
 
+  def equalityTest(sparkDataset: Array[Row],
+                   mleapDataset: Array[Row]): Boolean = {
+    sparkDataset sameElements mleapDataset
+  }
+
   def parityTransformer(): Unit = {
     it("has parity between Spark/MLeap") {
       val sparkTransformed = sparkTransformer.transform(dataset)
@@ -146,7 +166,7 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
       val mleapTransformed = mTransformer.sparkTransform(dataset)
       val mleapDataset = mleapTransformed.select(mleapCols(mleapTransformed): _*).collect()
 
-      assert(sparkDataset sameElements mleapDataset)
+      assert(equalityTest(sparkDataset, mleapDataset))
     }
 
     it("serializes/deserializes the Spark model properly") {
@@ -177,18 +197,15 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
       val mTransformer = mleapTransformer(sparkTransformer)
 
       mTransformer match {
-        case transformer: BaseTransformer => {
-          asssertModelTypesMatchTransformerTypes(transformer.model, transformer.exec)
-        }
-        case pipeline: Pipeline => {
-          pipeline.transformers.foreach(tran => tran match {
-            case stage: BaseTransformer => {
-              asssertModelTypesMatchTransformerTypes(stage.model, stage.exec)
-            }
-            case _ => assert(true) // no udf to check against
-          })
-        }
-        case _ => assert(true) // no udf to check against
+        case transformer: BaseTransformer =>
+          asssertModelTypesMatchTransformerTypes(transformer.model, transformer)
+        case pipeline: Pipeline =>
+          pipeline.transformers.foreach {
+            case stage: BaseTransformer =>
+              asssertModelTypesMatchTransformerTypes(stage.model, stage)
+            case _ => // no udf to check against
+          }
+        case _ => // no udf to check against
       }
    }
   }
