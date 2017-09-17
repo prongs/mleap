@@ -59,7 +59,7 @@ trait ProbabilisticClassificationModel extends ClassificationModel {
   def predict(features: Vector): Double = probabilityToPrediction(predictProbabilities(features))
   def predictWithProbability(features: Vector): (Double, Double) = {
     val probabilities = predictProbabilities(features)
-    val index = probabilityToPrediction(probabilities)
+    val index = probabilityToPredictionIndex(probabilities)
     (index.toDouble, probabilities(index))
   }
 
@@ -81,7 +81,11 @@ trait ProbabilisticClassificationModel extends ClassificationModel {
     }
   }
 
-  def probabilityToPrediction(probability: Vector): Int = {
+  def probabilityToPrediction(probability: Vector): Double = {
+    probabilityToPredictionIndex(probability).toDouble
+  }
+
+  def probabilityToPredictionIndex(probability: Vector): Int = {
     thresholds match {
       case Some(ts) =>
         val scaledProbability: Array[Double] =
