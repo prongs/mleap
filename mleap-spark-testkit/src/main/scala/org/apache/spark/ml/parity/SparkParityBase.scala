@@ -78,24 +78,21 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
     }).tried.get
   }
 
-  def asssertModelTypesMatchTransformerTypes(model: Model, transformer: BaseTransformer): Unit = {
+  def assertModelTypesMatchTransformerTypes(model: Model, transformer: BaseTransformer): Unit = {
     val modelInputTypes = transformer.shape.inputs.
       map(_._2.port).
       map(n => model.inputSchema.getField(n).get.dataType).
       toSeq
-    val transformerInputTypes = transformer.shape.inputs.
-      map(_._2.name).
-      map(n => transformer.inputSchema.getField(n).get.dataType).
-      toSeq
+    val transformerInputTypes = transformer.exec.inputs.flatMap(_.dataTypes)
 
     val modelOutputTypes = transformer.shape.outputs.
       map(_._2.port).
       map(n => model.outputSchema.getField(n).get.dataType).
       toSeq
-    val transformerOutputTypes = transformer.shape.outputs.
-      map(_._2.name).
-      map(n => transformer.outputSchema.getField(n).get.dataType).
-      toSeq
+    val transformerOutputTypes = transformer.exec.outputTypes
+
+    println(modelOutputTypes)
+    println(transformerOutputTypes)
 
     checkTypes(modelInputTypes, transformerInputTypes)
     checkTypes(modelOutputTypes, transformerOutputTypes)
@@ -161,11 +158,11 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
 
       mTransformer match {
         case transformer: BaseTransformer =>
-          asssertModelTypesMatchTransformerTypes(transformer.model, transformer)
+          assertModelTypesMatchTransformerTypes(transformer.model, transformer)
         case pipeline: Pipeline =>
           pipeline.transformers.foreach {
             case stage: BaseTransformer =>
-              asssertModelTypesMatchTransformerTypes(stage.model, stage)
+              assertModelTypesMatchTransformerTypes(stage.model, stage)
             case _ => // no udf to check against
           }
         case _ => // no udf to check against
