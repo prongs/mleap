@@ -115,7 +115,7 @@ abstract class SparkParityBase extends FunSpec with BeforeAndAfterAll {
     }).tried.get
   }
 
-  def asssertModelTypesMatchTransformerTypes(model: Model, transformer: BaseTransformer) = {
+  def asssertModelTypesMatchTransformerTypes(model: Model, transformer: BaseTransformer): Unit = {
     val modelInputTypes = transformer.shape.inputs.
       map(_._2.port).
       map(n => model.inputSchema.getField(n).get.dataType).
